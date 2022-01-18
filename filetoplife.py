@@ -81,11 +81,13 @@ static int do_entry(struct pt_regs *ctx, struct file *file,
     bpf_get_current_comm(&info.comm, sizeof(info.comm));
     info.name_len = d_name.len;
     bpf_probe_read_kernel(&info.name, sizeof(info.name), d_name.name);
-    info.type = 'W'
+    info.type = 'W';
 
     struct val_t *valp, zero = {};
     valp = counts.lookup_or_try_init(&info, &zero);
-    valp->time += bpf_ktime_get_ns();
+    if(valp){
+        valp->time += bpf_ktime_get_ns();
+    }
 
 
     return 0;
@@ -99,7 +101,7 @@ int trace_write_entry(struct pt_regs *ctx, struct file *file,
 // trace file deletion and output details
 int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
 {
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u32 pid = bpf_get_current_pid_tgid();
     if (TGID_FILTER)
             return 0;
 
@@ -115,11 +117,13 @@ int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
     bpf_get_current_comm(&info.comm, sizeof(info.comm));
     info.name_len = d_name.len;
     bpf_probe_read_kernel(&info.name, sizeof(info.name), d_name.name);
-    info.type = 'D'
+    info.type = 'D';
 
     struct val_t *valp, zero = {};
     valp = counts.lookup_or_try_init(&info, &zero);
-    valp->time += bpf_ktime_get_ns();
+    if(valp){
+        valp->time += bpf_ktime_get_ns();
+    }
 
     return 0;
 }
@@ -141,6 +145,7 @@ b = BPF(text=bpf_text)
 b.attach_kprobe(event="vfs_write", fn_name="trace_write_entry")
 b.attach_kprobe(event="vfs_unlink", fn_name="trace_unlink")
 
+TASK_COMM_LEN = 32
 DNAME_INLINE_LEN = 32  # linux/dcache.h
 
 print('Tracing... Output every %d secs. Hit Ctrl-C to end' % interval)
@@ -150,19 +155,15 @@ def sort_fn(counts):
 
 # output
 exiting = 0
+print("%-20s %-7s %-16s %4s %s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE"))
+
 while 1:
     try:
         sleep(interval)
     except KeyboardInterrupt:
         exiting = 1
 
-    # header
-    if clear:
-        call("clear")
-    else:
-        print()
-    print("%s %-7s %-16s %1s %s" % ("TIME" ,"TID", "COMM", "T", "FILE"))
-
+    
     # by-TID output
     counts = b.get_table("counts")
     line = 0
@@ -173,7 +174,7 @@ while 1:
             name = name[:-3] + "..."
 
         # print line
-        print("%s %-7s %-16s %1s %s" % (
+        print("%-20s %-7s %-16s %4s %s" % (
             datetime.fromtimestamp(v.time // 1000000000).strftime('%Y-%m-%d %H:%M:%S'),   
             k.pid,
             k.comm.decode('utf-8', 'replace'),
