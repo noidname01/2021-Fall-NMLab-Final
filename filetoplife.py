@@ -166,7 +166,7 @@ def print_event(cpu, data, size):
     event = b["events"].event(data)
     name = event.name.decode('utf-8', 'replace')
     if event.name_len > DNAME_INLINE_LEN:
-        name = name[:-3] + "..."
+        name = name + "..."
 
     # print line
     print("%-20s %-7s %-16s %4s %s" % (
