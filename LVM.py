@@ -1,4 +1,3 @@
-import imp
 import subprocess as sb
 import sys
 import random
@@ -79,14 +78,19 @@ class LVM():
                 if self.lvs[i]['n']==self.lvs[l]['snapshot'][0][0]:
                     snapath=self.lvs[i]['p']
         p = sb.Popen(['mkdir','-p',f'/media/{self.lvs[l]["snapshot"][0][0]}'],stdout=sb.PIPE)
+        p.stdout.read()
         p = sb.Popen(
                 ['mount','-t','auto',snapath,
                 f'/media/{self.lvs[l]["snapshot"][0][0]}'],stdout=sb.PIPE
             )
+        p.stdout.read()
         return f'/media/{self.lvs[l]["snapshot"][0][0]}'
+   
     def unmountSanpshot(self,l):
         p = sb.Popen(['umount',f'/media/{self.lvs[l]["snapshot"][0][0]}'])
-
+        p.stdout.read()
+        p = sb.Popen(['rm','-r',f'/media/{self.lvs[l]["snapshot"][0][0]}'])
+        p.stdout.read()
     def removeSnapshot(self,l):
         if len(self.lvs[l]['snapshot']) == 0:
             raise NameError('There is no snapshot for the LV.')
@@ -108,14 +112,16 @@ class LVM():
 
 
 class FileRe():
-    def __init__(self,rt):
+    def __init__(self,rt,mount=''):
+    
+        self.mount = mount[:-1]
         # self.mount = mount # mount path
         self.rt = rt # protected parent folder
         self.files = []
-        self.getDir(rt)
+        self.getDir(mount+rt)
 
     def getDir(self,rt):
-        notProtect=set(['/proc',])
+        notProtect=set(['/proc','/tmp','/media','/mnt'])
         try:
             for entry in os.scandir(rt):
                 if entry.is_file():
@@ -133,14 +139,32 @@ class FileRe():
             pass
 
     def r(self,filename,select=-1,all=False):     # Recovery if there is only one file
-        c = self.files.copy() # fit the query. Otherwise ret a list.
+        c = self.files.copy()                     # fit the query. Otherwise ret a list.
         l = len(filename)
         c = list(filter(lambda x: filename == x['n'][:l],c))
         if len(c) == 1:
-            pass
-        else:
+            dlist = c[0]['p'].split('/')[3:-1]
+            exists_parent_folder = ''
+            for d in dlist:
+                if os.path.isdir(exists_parent_folder+'/'+d):
+                    exists_parent_folder = exists_parent_folder+'/'+d
+                else:
+                    exists_parent_folder = exists_parent_folder+'/'+d
+                    dd = os.stat(self.mount+exists_parent_folder)
+                    os.mkdir(exists_parent_folder)
+                    os.chown(exists_parent_folder,dd.st_uid,dd.st_gid)
+                    os.chmod(exists_parent_folder,dd.st_mode)
+                    break
+            fd = os.stat(c[0]["p"])
+            fmode ,fuid,fgid = fd.st_mode,fd.st_uid,fd.st_gid
+            os.chmod(c[0]["p"],0o400)
+            newpath=exists_parent_folder+'/'+c[0]['n']
+            p = sb.Popen(['cp',f'{c[0]["p"]}',f'{exists_parent_folder}'],stdout=sb.PIPE)
+            p.stdout.read()
+            os.chown(newpath,fuid,fgid)
+            os.chmod(newpath,fmode)
+        elif select==-1 and not all:
             return c
-
 
 # a = LVM()
 #a.createSnapshot(0,1024)
@@ -148,3 +172,4 @@ class FileRe():
 # a.unmountSnapshot(0)
 # a.removeSnapshot(0)
 # print(a)
+# reco = FileRe('/','/media/nsfjhqw/')
