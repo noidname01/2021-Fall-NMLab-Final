@@ -39,13 +39,12 @@ debug = 0
 
 bpf_text = """
 #include <uapi/linux/ptrace.h>
-#include <linux/blkdev.h>
 #include <linux/fs.h>
 #include <linux/sched.h>
 // the key for the output summary
 struct info_t {
+    u64 order;
     unsigned long inode;
-    dev_t dev;
     u32 pid;
     u32 name_len;
     char comm[TASK_COMM_LEN];
@@ -53,11 +52,10 @@ struct info_t {
     char name[DNAME_INLINE_LEN];
     char type;
 };
-// the value of the output summary
-struct val_t {
-    u64 time;
-};
-BPF_HASH(counts, struct info_t, struct val_t);
+
+BPF_ARRAY(order, u64, 1);
+BPF_HASH(counts, struct dentry *);
+BPF_PERF_OUTPUT(events);
 
 static int do_entry(struct pt_regs *ctx, struct file *file,
     char __user *buf, size_t count, int is_read)
@@ -76,21 +74,24 @@ static int do_entry(struct pt_regs *ctx, struct file *file,
     struct info_t info = {
         .pid = pid,
         .inode = file->f_inode->i_ino,
-        .dev = file->f_inode->i_rdev,
     };
     bpf_get_current_comm(&info.comm, sizeof(info.comm));
     info.name_len = d_name.len;
     bpf_probe_read_kernel(&info.name, sizeof(info.name), d_name.name);
     info.type = 'W';
 
-    struct val_t *valp, zero = {};
-    valp = counts.lookup_or_try_init(&info, &zero);
-    if(valp){
-        valp->time += bpf_ktime_get_ns();
+    int key = 0;
+    u64 *ord;
+
+    ord = order.lookup(&key);
+    
+    if(ord){
+        info.order = *ord;
+        bpf_trace_printk("count: %llu, filename: %s", *ord, info.name);
+        *ord = *ord + 1;
+        events.perf_submit(ctx, &info, sizeof(info));
+        return 0;
     }
-
-
-    return 0;
 }
 int trace_write_entry(struct pt_regs *ctx, struct file *file,
     char __user *buf, size_t count)
@@ -119,13 +120,17 @@ int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
     bpf_probe_read_kernel(&info.name, sizeof(info.name), d_name.name);
     info.type = 'D';
 
-    struct val_t *valp, zero = {};
-    valp = counts.lookup_or_try_init(&info, &zero);
-    if(valp){
-        valp->time += bpf_ktime_get_ns();
-    }
+    int key = 0;
+    u64 *ord;
 
-    return 0;
+    ord = order.lookup(&key);
+    if(ord){
+        info.order = *ord;
+        bpf_trace_printk("count: %llu, filename: %s", *ord, info.name);
+        *ord = *ord + 1;
+        events.perf_submit(ctx, &info, sizeof(info));
+        return 0;
+    }
 }
 """
 
@@ -151,43 +156,33 @@ DNAME_INLINE_LEN = 32  # linux/dcache.h
 print('Tracing... Output every %d secs. Hit Ctrl-C to end' % interval)
 
 def sort_fn(counts):
-    return (counts[1].time)
+    return (counts[1].order)
 
-# output
-exiting = 0
+# header
 print("%-20s %-7s %-16s %4s %s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE"))
 
+# process event
+def print_event(cpu, data, size):
+    event = b["events"].event(data)
+    name = event.name.decode('utf-8', 'replace')
+    if event.name_len > DNAME_INLINE_LEN:
+        name = name[:-3] + "..."
+
+    # print line
+    print("%-20s %-7s %-16s %4s %s" % (
+        # datetime.fromtimestamp(v.time // 1000000000).strftime('%Y-%m-%d %H:%M:%S'),   
+        event.order,
+        event.pid,
+        event.comm.decode('utf-8', 'replace'),
+        event.type.decode('utf-8', 'replace'), 
+        name
+    ))
+
+b["events"].open_perf_buffer(print_event)
 while 1:
     try:
-        sleep(interval)
+        b.perf_buffer_poll()
     except KeyboardInterrupt:
-        exiting = 1
-
-    
-    # by-TID output
-    counts = b.get_table("counts")
-    line = 0
-    for k, v in reversed(sorted(counts.items(),
-                                key=sort_fn)):
-        name = k.name.decode('utf-8', 'replace')
-        if k.name_len > DNAME_INLINE_LEN:
-            name = name[:-3] + "..."
-
-        # print line
-        print("%-20s %-7s %-16s %4s %s" % (
-            datetime.fromtimestamp(v.time // 1000000000).strftime('%Y-%m-%d %H:%M:%S'),   
-            k.pid,
-            k.comm.decode('utf-8', 'replace'),
-            k.type.decode('utf-8', 'replace'), 
-            name
-        ))
-
-        line += 1
-        if line >= maxrows:
-            break
-    counts.clear()
-
-    countdown -= 1
-    if exiting or countdown == 0:
-        print("Detaching...")
         exit()
+
+        
