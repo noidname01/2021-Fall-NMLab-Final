@@ -1,6 +1,6 @@
 from __future__ import print_function
 from bcc import BPF
-from time import sleep, strftime
+import time
 import argparse
 from subprocess import call
 from datetime import datetime
@@ -161,8 +161,10 @@ def sort_fn(counts):
 # header
 print("%-20s %-7s %-16s %4s %s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE"))
 
+comm_set = set()
+
 # process event
-def print_event(cpu, data, size):
+def filter_event(cpu, data, size):
     event = b["events"].event(data)
     name = event.name.decode('utf-8', 'replace')
     if event.name_len > DNAME_INLINE_LEN:
@@ -178,11 +180,41 @@ def print_event(cpu, data, size):
         name
     ))
 
-b["events"].open_perf_buffer(print_event)
-while 1:
+    comm_set.add(event.comm.decode('utf-8', 'replace'))
+
+
+b["events"].open_perf_buffer(filter_event)
+
+start_time = time.time()
+while (time.time() - start_time) < 300:
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
         exit()
 
-        
+print(comm_set)
+print()
+
+
+def print_event(cpu, data, size):
+    event = b["events"].event(data)
+    name = event.name.decode('utf-8', 'replace')
+    if event.name_len > DNAME_INLINE_LEN:
+        name = name[:-3] + "..."
+
+    # print line
+    if(event.comm.decode('utf-8', 'replace')) not in comm_set:
+        print("%-20s %-7s %-16s %4s %s" % (
+            event.order,
+            event.pid,
+            event.comm.decode('utf-8', 'replace'),
+            event.type.decode('utf-8', 'replace'), 
+            name
+        ))
+b["events"].open_perf_buffer(print_event)
+
+while 1:
+    try:
+        b.perf_buffer_poll()
+    except KeyboardInterrupt:
+        exit()
