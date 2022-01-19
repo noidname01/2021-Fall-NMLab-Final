@@ -47,9 +47,9 @@ struct info_t {
     unsigned long inode;
     u32 pid;
     u32 name_len;
-    char comm[TASK_COMM_LEN];
+    char comm[4*TASK_COMM_LEN];
     // de->d_name.name may point to de->d_iname so limit len accordingly
-    char name[DNAME_INLINE_LEN];
+    char name[2*DNAME_INLINE_LEN];
     char type;
 };
 
@@ -170,6 +170,7 @@ def filter_event(cpu, data, size):
     if event.name_len > DNAME_INLINE_LEN:
         name = name[:-3] + "..."
 
+    
     # print line
     print("%-20s %-7s %-16s %4s %s" % (
         # datetime.fromtimestamp(v.time // 1000000000).strftime('%Y-%m-%d %H:%M:%S'),   
