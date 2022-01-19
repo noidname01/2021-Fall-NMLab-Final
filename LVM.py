@@ -1,7 +1,8 @@
+import imp
 import subprocess as sb
 import sys
 import random
-
+import os
 class LVM():
     eng = 'abcdefghijklmnopqrstuvwxyz'
     def __init__(self):
@@ -82,6 +83,7 @@ class LVM():
                 ['mount','-t','auto',snapath,
                 f'/media/{self.lvs[l]["snapshot"][0][0]}'],stdout=sb.PIPE
             )
+        return f'/media/{self.lvs[l]["snapshot"][0][0]}'
     def unmountSanpshot(self,l):
         p = sb.Popen(['umount',f'/media/{self.lvs[l]["snapshot"][0][0]}'])
 
@@ -102,6 +104,44 @@ class LVM():
             to_print+=f'{i}: {str(lv)}\n'
         return to_print
     
+
+
+
+class FileRe():
+    def __init__(self,rt):
+        # self.mount = mount # mount path
+        self.rt = rt # protected parent folder
+        self.files = []
+        self.getDir(rt)
+
+    def getDir(self,rt):
+        notProtect=set(['/proc',])
+        try:
+            for entry in os.scandir(rt):
+                if entry.is_file():
+                    d = {
+                        'n':f'{str(entry.name).split("/")[-1]}',
+                        'p':str(entry.path)
+                    }
+                    self.files.append(d)
+                elif entry.is_dir() and not entry.is_symlink():
+                    if str(entry.path) in notProtect:
+                        pass
+                    else:
+                        self.getDir(entry.path)   
+        except PermissionError:
+            pass
+
+    def r(self,filename,select=-1,all=False):     # Recovery if there is only one file
+        c = self.files.copy() # fit the query. Otherwise ret a list.
+        l = len(filename)
+        c = list(filter(lambda x: filename == x['n'][:l],c))
+        if len(c) == 1:
+            pass
+        else:
+            return c
+
+
 # a = LVM()
 #a.createSnapshot(0,1024)
 #a.mountSnapshot(0)
