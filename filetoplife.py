@@ -157,6 +157,7 @@ mount_path = snapshot.mountSnapshot(0)
 
 command_to_comm = {}
 comm_to_command = {}
+comm_filename_set = set()
 candidators_info = {}
 
 # the path we trust
@@ -194,20 +195,21 @@ def print_event(cpu, data, size):
         # if the executor doesn't in the whitelist, record it to be processed
         has_whitepath = list(filter(lambda x: command.replace(x, "") != command, whilelist))
         if debug and len(has_whitepath) == 0:
-            print("%-20s %-7s %-16s %4s %-64s" % (
+            if (comm, name) not in comm_filename_set:
+                print("%-10d %-7s %-16s %4s %-64s" % (
                             event.order,
                             event.pid,
                             comm,
                             event.type.decode('utf-8', 'replace'), 
                             name,
-            ))
-        
-            candidators_info[str(event.order)] = {
-                "pid":event.pid,
-                "comm":comm,
-                "type": event.type.decode('utf-8', 'replace'), 
-                "filename": name,
-            }
+                ))
+                comm_filename_set.add((comm, name))
+                candidators_info[str(event.order)] = {
+                    "pid":event.pid,
+                    "comm":comm,
+                    "type": event.type.decode('utf-8', 'replace'), 
+                    "filename": name,
+                }
 
         
 b["events"].open_perf_buffer(print_event)
@@ -215,7 +217,7 @@ b["events"].open_perf_buffer(print_event)
 # header
 if debug:
     print('Tracing... Output every %d secs. Hit Ctrl-C to end' % interval)
-    print("%-20s %-7s %-16s %4s %-64s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE"))   
+    print("%-10s %-7s %-16s %4s %-64s" % ("ORDER" ,"TID", "COMM", "TYPE", "FILE"))   
 else:
     print('Scanning... ')
 
@@ -235,21 +237,26 @@ file_recoverer = FileRe('/', mount_path)
 
 print(mount_path)
 
-# all_possibility = file_recoverer.query("test.txt")
-# print(all_possibility)
+print("%-10s %-7s %-16s %4s %-64s" % ("ORDER" ,"TID", "COMM", "TYPE", "FILE"))   
 
-for i,(order, info) in enumerate(candidators_info.items()):
+count = 0
+full_path_filenames = []
+for order, info in candidators_info.items():
     all_possibility = file_recoverer.query(info["filename"])
     for possibility in all_possibility:
         print("%5d %-7s %-16s %4s %-64s" % (
-                            i,
+                            count,
                             info["pid"],
                             info["comm"],
                             info["type"], 
                             possibility["p"],
             ))
+        full_path_filenames.append(possibility["p"])
+        count += 1
 
+to_be_recovered = list(map(lambda x : full_path_filenames[int(x)],input("choose the file you want to recover:").split(" ")))
+file_recoverer.recovery(to_be_recovered)
 
-
+print("Congraturation! Recovery Success.")
 # snapshot.unmountSnapshot(0)
 # snapshot.removeSnapshot(0)
