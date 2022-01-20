@@ -135,7 +135,7 @@ class FileRe():
         except PermissionError:
             pass
 
-    def recovery(self,filename,selects=-1,all=False,lists=[]):     # Recovery if there is only one file
+    def recovery_with_search(self,filename,selects=-1,all=False,lists=[]):     # Recovery if there is only one file
         if filename == "":
             return 1
         if len(lists) == 0:
@@ -195,6 +195,33 @@ class FileRe():
             self.r(filename,select=[i for i in range(len(c))],lists=c)
             return 0
     
+    def recovery(self,fullnames):
+        l = len(fullnames)
+        for i in range(l):
+            cc = fullnames[i].split('/')
+            dlist , name = cc[3:-1], cc[-1]
+            exists_parent_folder = ''
+            for d in dlist:
+                if os.path.isdir(exists_parent_folder+'/'+d):
+                    exists_parent_folder = exists_parent_folder+'/'+d
+                else:
+                    exists_parent_folder = exists_parent_folder+'/'+d
+                    dd = os.stat(self.mount+exists_parent_folder)
+                    os.mkdir(exists_parent_folder)
+                    os.chown(exists_parent_folder,dd.st_uid,dd.st_gid)
+                    os.chmod(exists_parent_folder,dd.st_mode)
+                    
+            fd = os.stat(fullnames[i])
+            fmode ,fuid,fgid = fd.st_mode,fd.st_uid,fd.st_gid
+            os.chmod(fullnames[i],0o400)
+            newpath = exists_parent_folder+'/'+name
+            p = sb.Popen(['cp',f'{fullnames[i]}',f'{exists_parent_folder}'],stdout=sb.PIPE).wait()            
+            os.chown(newpath,fuid,fgid)
+            os.chmod(newpath,fmode)
+            os.chmod(fullnames[i],fmode)
+        return 0
+          
+
     @functools.lru_cache(maxsize=512,typed=True)
     def query(self,filename):
         if(filename!=""):
