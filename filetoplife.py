@@ -235,19 +235,21 @@ file_recoverer = FileRe('/', mount_path)
 
 print(mount_path)
 
-all_possibility = file_recoverer.query("test.txt")
-print(all_possibility)
+# all_possibility = file_recoverer.query("test.txt")
+# print(all_possibility)
 
-# for order, info in candidators_info.items():
-#     all_possibility = file_recoverer.query("test.txt")
-#     print(all_possibility)
-    # for possibility in all_possibility:
-    #     print("%-7s %-16s %4s %-64s" % (
-    #                         info.pid,
-    #                         info.comm,
-    #                         info.type, 
-    #                         possibility["p"],
-    #         ))
+for i,(order, info) in enumerate(candidators_info.items()):
+    all_possibility = file_recoverer.query(info["filename"])
+    for possibility in all_possibility:
+        print("%5d %-7s %-16s %4s %-64s" % (
+                            i,
+                            info["pid"],
+                            info["comm"],
+                            info["type"], 
+                            possibility["p"],
+            ))
+
+
 
 # snapshot.unmountSnapshot(0)
 # snapshot.removeSnapshot(0)
