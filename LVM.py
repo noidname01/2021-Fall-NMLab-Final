@@ -127,7 +127,8 @@ class FileRe():
                     }
                     self.files.append(d)
                 elif entry.is_dir() and not entry.is_symlink():
-                    if str(entry.path) in notProtect:
+                    print(str(entry.path).split('/'))
+                    if str(entry.path).split('/')[1] in notProtect:
                         pass
                     else:
                         self.getDir(entry.path)   
