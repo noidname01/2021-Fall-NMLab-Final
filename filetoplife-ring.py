@@ -287,7 +287,12 @@ except KeyboardInterrupt:
 
     while len(full_path_filenames) > 0 and input("Continue to Recover?[y/n]").strip().lower() != "n":
         
-        choosed = list(map(lambda x:int(x), input("Choose the file you want to recover:" ).split(" ")))
+        input_str = input("Choose the file you want to recover:[input 'a' to recover all file on the list]: ").strip()
+        if(input_str == "a"):
+            file_recoverer.recovery(full_path_filenames)
+            break
+        
+        choosed = list(map(lambda x:int(x), input_str.split(" ")))
         to_be_recovered = list(map(lambda x : full_path_filenames[int(x)],choosed))
 
         for i in choosed:
