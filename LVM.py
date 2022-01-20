@@ -134,7 +134,7 @@ class FileRe():
         except PermissionError:
             pass
 
-    def r(self,filename,select=-1,all=False,lists=[]):     # Recovery if there is only one file
+    def r(self,filename,selects=-1,all=False,lists=[]):     # Recovery if there is only one file
         if len(lists) == 0:
             c = self.files.copy()                     # fit the query. Otherwise ret a list.
             l = len(filename)
@@ -163,33 +163,34 @@ class FileRe():
             os.chmod(newpath,fmode)
             os.chmod(c[0]["p"],fmode)
             return 0
-        elif select==-1 and not all:
+        elif selects==-1 and not all:
             return c
-        elif select != -1:
-            dlist = c[select]['p'].split('/')[4:-1]
-            exists_parent_folder = ''
-            for d in dlist:
-                if os.path.isdir(exists_parent_folder+'/'+d):
-                    exists_parent_folder = exists_parent_folder+'/'+d
-                else:
-                    exists_parent_folder = exists_parent_folder+'/'+d
-                    dd = os.stat(self.mount+exists_parent_folder)
-                    os.mkdir(exists_parent_folder)
-                    os.chown(exists_parent_folder,dd.st_uid,dd.st_gid)
-                    os.chmod(exists_parent_folder,dd.st_mode)
-                    continue
-            fd = os.stat(c[select]["p"])
-            fmode ,fuid,fgid = fd.st_mode,fd.st_uid,fd.st_gid
-            os.chmod(c[select]["p"],0o400)
-            newpath=exists_parent_folder+'/'+c[select]['n']
-            p = sb.Popen(['cp',f'{c[select]["p"]}',f'{exists_parent_folder}'],stdout=sb.PIPE).wait()
-            os.chown(newpath,fuid,fgid)
-            os.chmod(newpath,fmode)
-            os.chmod(c[select]["p"],fmode)
+        elif selects != -1:
+            for select in selects:
+                dlist = c[select]['p'].split('/')[4:-1]
+                exists_parent_folder = ''
+                for d in dlist:
+                    if os.path.isdir(exists_parent_folder+'/'+d):
+                        exists_parent_folder = exists_parent_folder+'/'+d
+                    else:
+                        exists_parent_folder = exists_parent_folder+'/'+d
+                        dd = os.stat(self.mount+exists_parent_folder)
+                        os.mkdir(exists_parent_folder)
+                        os.chown(exists_parent_folder,dd.st_uid,dd.st_gid)
+                        os.chmod(exists_parent_folder,dd.st_mode)
+                        continue
+                fd = os.stat(c[select]["p"])
+                fmode ,fuid,fgid = fd.st_mode,fd.st_uid,fd.st_gid
+                os.chmod(c[select]["p"],0o400)
+                newpath=exists_parent_folder+'/'+c[select]['n']
+                p = sb.Popen(['cp',f'{c[select]["p"]}',f'{exists_parent_folder}'],stdout=sb.PIPE).wait()
+                os.chown(newpath,fuid,fgid)
+                os.chmod(newpath,fmode)
+                os.chmod(c[select]["p"],fmode)
             return 0
-        elif all:
-            for i in range(len(c)):
-                self.r(filename,select=i,lists=c)
+        elif all:  
+            self.r(filename,select=[i for i in range(len(c))],lists=c)
+            return 0
     
     @functools.lru_cache(maxsize=512,typed=True)
     def q(self,filename):
