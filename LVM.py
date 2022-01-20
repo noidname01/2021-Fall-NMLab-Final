@@ -110,8 +110,8 @@ class LVM():
 
 class FileRe():
     def __init__(self,rt,mount=''):
-        self.mount = mount[:-1]
-        # self.mount = mount # mount path
+        # self.mount = mount[:-1]
+        self.mount = mount # mount path
         self.rt = rt # protected parent folder
         self.files = []
         self.getDir(mount+rt)
@@ -127,7 +127,7 @@ class FileRe():
                     }
                     self.files.append(d)
                 elif entry.is_dir() and not entry.is_symlink():
-                    print(str(entry.path).split('/'))
+                    # print(str(entry.path).split('/'))
                     if str(entry.path).split('/')[1] in notProtect:
                         pass
                     else:
@@ -135,7 +135,9 @@ class FileRe():
         except PermissionError:
             pass
 
-    def r(self,filename,selects=-1,all=False,lists=[]):     # Recovery if there is only one file
+    def recovery(self,filename,selects=-1,all=False,lists=[]):     # Recovery if there is only one file
+        if filename == "":
+            return 1
         if len(lists) == 0:
             c = self.files.copy()                     # fit the query. Otherwise ret a list.
             l = len(filename)
@@ -194,10 +196,13 @@ class FileRe():
             return 0
     
     @functools.lru_cache(maxsize=512,typed=True)
-    def q(self,filename):
-        c = self.files.copy()
-        l = len(filename)
-        return list(filter(lambda x: filename == x['n'][:l],c))
+    def query(self,filename):
+        if(filename!=""):
+            c = self.files.copy()
+            l = len(filename)
+            return list(filter(lambda x: filename == x['n'][:l],c))
+        else:
+            return []
 
 
 
