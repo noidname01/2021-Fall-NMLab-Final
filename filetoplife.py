@@ -26,7 +26,7 @@ parser.add_argument("-r", "--maxrows", default=20,
     help="maximum rows to print, default 20")
 parser.add_argument("-p", "--pid", type=int, metavar="PID", dest="tgid",
     help="trace this PID only")
-parser.add_argument("duration", nargs="?", 
+parser.add_argument("duration", nargs="?", default=9999999999,
     help="the scanning time duration")
 parser.add_argument("interval", nargs="?", default=1,
     help="output interval, in seconds")
@@ -230,33 +230,46 @@ while time.time() - start_time < duration:
         print("Bye!")
         exit()
 
-# print(candidators_info)
-
-
 file_recoverer = FileRe('/', mount_path)
 
-print(mount_path)
 
-print("%-10s %-7s %-16s %4s %-64s" % ("ORDER" ,"TID", "COMM", "TYPE", "FILE"))   
+print("%-5s %-7s %-16s %4s %-64s" % ("ORDER" ,"TID", "COMM", "TYPE", "FILE"))   
 
 count = 0
 full_path_filenames = []
+display = []
 for order, info in candidators_info.items():
     all_possibility = file_recoverer.query(info["filename"])
     for possibility in all_possibility:
-        print("%5d %-7s %-16s %4s %-64s" % (
-                            count,
+        t = ("%-7s %-16s %4s %-64s" % (
                             info["pid"],
                             info["comm"],
                             info["type"], 
                             possibility["p"],
             ))
+        print("%5d " % (count) + t)
         full_path_filenames.append(possibility["p"])
+        display.append(t)
         count += 1
 
-to_be_recovered = list(map(lambda x : full_path_filenames[int(x)],input("choose the file you want to recover:").split(" ")))
-file_recoverer.recovery(to_be_recovered)
+while len(full_path_filenames) > 0 and input("Continue to Recover?[y/n]").strip().lower() != "n":
+    
+    choosed = list(map(lambda x:int(x), input("Choose the file you want to recover:" ).split(" ")))
+    to_be_recovered = list(map(lambda x : full_path_filenames[int(x)],choosed))
 
-print("Congraturation! Recovery Success.")
+    for i in choosed:
+        full_path_filenames[i] = ""
+        display[i] = ""        
+    full_path_filenames = list(filter(lambda x: x!="", full_path_filenames))
+    display = list(filter(lambda x:x!="", display))
+
+    for i, t in enumerate(display):
+        print("%5d " % (i) + t)
+
+    file_recoverer.recovery(to_be_recovered)
+
+    print("Congraturation! Recovery Success.")
+
+print("Bye!")
 # snapshot.unmountSnapshot(0)
 # snapshot.removeSnapshot(0)
