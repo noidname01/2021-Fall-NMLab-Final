@@ -230,7 +230,11 @@ def print_event(cpu, data, size):
 
     except:
         # process has been stopped
-        command = comm_to_command[comm]
+        try:
+            command = comm_to_command[comm]
+        except:
+            command = "This comm comes from a stopped process"
+
     finally:
         # if command not in comm_set:
         print("%-20s %-7s %-16s %4s %-64s %-64s" % (
