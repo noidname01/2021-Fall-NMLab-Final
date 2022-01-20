@@ -117,7 +117,7 @@ class FileRe():
         self.getDir(mount+rt)
 
     def getDir(self,rt):
-        notProtect=set(['/proc','/tmp','/media','/mnt'])
+        notProtect=set(['proc','tmp','mnt'])
         try:
             for entry in os.scandir(rt):
                 if entry.is_file():
