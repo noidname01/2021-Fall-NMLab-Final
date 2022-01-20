@@ -1,12 +1,12 @@
 from __future__ import print_function
+from asyncore import file_wrapper
 from bcc import BPF
 import time
 import argparse
 import subprocess
-from datetime import datetime
 
-from click import command
-
+#====== our module ======
+from LVM import *
 
 # arguments
 examples = """examples:
@@ -26,18 +26,22 @@ parser.add_argument("-r", "--maxrows", default=20,
     help="maximum rows to print, default 20")
 parser.add_argument("-p", "--pid", type=int, metavar="PID", dest="tgid",
     help="trace this PID only")
+parser.add_argument("duration", nargs="?", 
+    help="the scanning time duration")
 parser.add_argument("interval", nargs="?", default=1,
     help="output interval, in seconds")
-parser.add_argument("count", nargs="?", default=99999999,
-    help="number of outputs")
-parser.add_argument("--ebpf", action="store_true",
-    help=argparse.SUPPRESS)
+parser.add_argument("--size", nargs="?", default=4096,
+    help="snapshot size in GB")
+parser.add_argument("--debug", action="store_true", 
+    help="open debug mode")
 args = parser.parse_args()
+
+duration = int(args.duration)
 interval = int(args.interval)
-countdown = int(args.count)
+size = int(args.size)
 maxrows = int(args.maxrows)
 clear = not int(args.noclear)
-debug = 0
+debug = bool(int(args.debug))
 
 bpf_text = """
 #include <uapi/linux/ptrace.h>
@@ -141,89 +145,36 @@ if args.tgid:
 else:
     bpf_text = bpf_text.replace('TGID_FILTER', '0')
 
-if debug or args.ebpf:
-    print(bpf_text)
-    if args.ebpf:
-        exit()
-
-
 # initialize BPF
-b = BPF(text=bpf_text)
+b = BPF(text=bpf_text, )
 b.attach_kprobe(event="vfs_write", fn_name="trace_write_entry")
 b.attach_kprobe(event="vfs_unlink", fn_name="trace_unlink")
 
-TASK_COMM_LEN = 32
-DNAME_INLINE_LEN = 32  # linux/dcache.h
-
-print('Tracing... Output every %d secs. Hit Ctrl-C to end' % interval)
-
-def sort_fn(counts):
-    return (counts[1].order)
-
-# header
-print("%-20s %-7s %-16s %4s %-64s %-64s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE", "COMMAND"))
-
-""" comm_set = set()
-
-# process event
-def filter_event(cpu, data, size):
-    event = b["events"].event(data)
-    name = event.name.decode('utf-8', 'replace')
-    if event.name_len > DNAME_INLINE_LEN:
-        name = name + "..."
-
-    p = subprocess.Popen(f'ps aux -L | grep " {str(event.pid)} "',shell=True, stdout=subprocess.PIPE)
-    command_list = list(map(lambda x:" ".join(x.split("   ")[-1].split(" ")[1:]).strip() ,p.stdout.read().decode('utf-8').splitlines()))
-    command_list = list(filter(lambda x: x.replace("grep", "") == x, command_list))
-    # print(command_list)
-    # print line
-    # print(p.stdout.read().decode('utf-8'))
-    try:
-        command = command_list[0].split(" ")[0]
-        comm_set.add(command)
-    except:
-        command = "This process has been stopped"
-    finally:
-        print("%-20s %-7s %-16s %4s %-64s %-64s" % (
-                    event.order,
-                    event.pid,
-                    event.comm.decode('utf-8', 'replace'),
-                    event.type.decode('utf-8', 'replace'), 
-                    name,
-                    command
-        ))
-
-
-b["events"].open_perf_buffer(filter_event)
-
-start_time = time.time()
-while (time.time() - start_time) < 30:
-    try:
-        b.perf_buffer_poll()
-    except KeyboardInterrupt:
-        exit()
-
-print(comm_set)
-print() """
+snapshot = LVM()
+# snapshot.createSnapshot(0, size)
+print("Mounting...")
+mount_path = snapshot.mountSnapshot(0)
 
 command_to_comm = {}
 comm_to_command = {}
+candidators_info = {}
 
+# the path we trust
 whilelist = ["/usr", "/lib", "/sbin"]
 
 def print_event(cpu, data, size):
     event = b["events"].event(data)
     name = event.name.decode('utf-8', 'replace')
     comm = event.comm.decode('utf-8', 'replace')
-    if event.name_len > DNAME_INLINE_LEN:
-        name = name[:-3] + "..."
 
+    # run 'ps aux -L | grep pid' to get the executor
     p = subprocess.Popen(f'ps aux -L | grep " {str(event.pid)} "',shell=True, stdout=subprocess.PIPE)
     command_list = list(map(lambda x:" ".join(x.split("   ")[-1].split(" ")[1:]).strip() ,p.stdout.read().decode('utf-8').splitlines()))
     command_list = list(filter(lambda x: x.replace("grep", "") == x, command_list))
-    # print line
+
     try:
         command = command_list[0].split(" ")[0]
+        # construct comm to command dict, to record the mapping relation ship
         if command not in command_to_comm:
             command_to_comm[command] = set()
         
@@ -233,28 +184,70 @@ def print_event(cpu, data, size):
     except:
         # process has been stopped
         try:
+            # if we have seen this comm before, get its command
             command = comm_to_command[comm]
         except:
+            # we didn't see it before
             command = "This comm comes from a stopped process"
 
     finally:
+        # if the executor doesn't in the whitelist, record it to be processed
         has_whitepath = list(filter(lambda x: command.replace(x, "") != command, whilelist))
-        if len(has_whitepath) == 0:
-            print("%-20s %-7s %-16s %4s %-64s %-64s" % (
+        if debug and len(has_whitepath) == 0:
+            print("%-20s %-7s %-16s %4s %-64s" % (
                             event.order,
                             event.pid,
                             comm,
                             event.type.decode('utf-8', 'replace'), 
                             name,
-                            command
             ))
+        
+            candidators_info[str(event.order)] = {
+                "pid":event.pid,
+                "comm":comm,
+                "type": event.type.decode('utf-8', 'replace'), 
+                "filename": name,
+            }
 
-
+        
 b["events"].open_perf_buffer(print_event)
 
-while 1:
+# header
+if debug:
+    print('Tracing... Output every %d secs. Hit Ctrl-C to end' % interval)
+    print("%-20s %-7s %-16s %4s %-64s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE"))   
+else:
+    print('Scanning... ')
+
+# run until the duration over
+start_time = time.time()
+while time.time() - start_time < duration:
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
-        print(command_to_comm)
+        print("Bye!")
         exit()
+
+# print(candidators_info)
+
+
+file_recoverer = FileRe('/', mount_path)
+
+print(mount_path)
+
+all_possibility = file_recoverer.query("test.txt")
+print(all_possibility)
+
+# for order, info in candidators_info.items():
+#     all_possibility = file_recoverer.query("test.txt")
+#     print(all_possibility)
+    # for possibility in all_possibility:
+    #     print("%-7s %-16s %4s %-64s" % (
+    #                         info.pid,
+    #                         info.comm,
+    #                         info.type, 
+    #                         possibility["p"],
+    #         ))
+
+# snapshot.unmountSnapshot(0)
+# snapshot.removeSnapshot(0)
