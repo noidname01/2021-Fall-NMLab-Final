@@ -209,6 +209,8 @@ print() """
 command_to_comm = {}
 comm_to_command = {}
 
+whilelist = ["/usr", "/lib", "/sbin"]
+
 def print_event(cpu, data, size):
     event = b["events"].event(data)
     name = event.name.decode('utf-8', 'replace')
@@ -236,15 +238,18 @@ def print_event(cpu, data, size):
             command = "This comm comes from a stopped process"
 
     finally:
-        # if command not in comm_set:
-        print("%-20s %-7s %-16s %4s %-64s %-64s" % (
-                    event.order,
-                    event.pid,
-                    comm,
-                    event.type.decode('utf-8', 'replace'), 
-                    name,
-                    command
-        ))
+        has_whitepath = list(filter(lambda x: command.replace(x, "") != command, whilelist))
+        if len(has_whitepath) == 0:
+            print("%-20s %-7s %-16s %4s %-64s %-64s" % (
+                            event.order,
+                            event.pid,
+                            comm,
+                            event.type.decode('utf-8', 'replace'), 
+                            name,
+                            command
+            ))
+
+
 b["events"].open_perf_buffer(print_event)
 
 while 1:
