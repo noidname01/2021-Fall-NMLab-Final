@@ -161,9 +161,9 @@ def sort_fn(counts):
     return (counts[1].order)
 
 # header
-print("%-20s %-7s %-16s %4s %s, %s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE", "COMMAND"))
+print("%-20s %-7s %-16s %4s %-64s %-64s" % ("TIME" ,"TID", "COMM", "TYPE", "FILE", "COMMAND"))
 
-comm_set = set()
+""" comm_set = set()
 
 # process event
 def filter_event(cpu, data, size):
@@ -180,20 +180,18 @@ def filter_event(cpu, data, size):
     # print(p.stdout.read().decode('utf-8'))
     try:
         command = command_list[0].split(" ")[0]
-        print("%-20s %-7s %-16s %4s %s %s" % (
-                # datetime.fromtimestamp(v.time // 1000000000).strftime('%Y-%m-%d %H:%M:%S'),   
-                event.order,
-                event.pid,
-                event.comm.decode('utf-8', 'replace'),
-                event.type.decode('utf-8', 'replace'), 
-                name,
-                command,
-        ))
         comm_set.add(command)
-
     except:
-        pass
-
+        command = "This process has been stopped"
+    finally:
+        print("%-20s %-7s %-16s %4s %-64s %-64s" % (
+                    event.order,
+                    event.pid,
+                    event.comm.decode('utf-8', 'replace'),
+                    event.type.decode('utf-8', 'replace'), 
+                    name,
+                    command
+        ))
 
 
 b["events"].open_perf_buffer(filter_event)
@@ -206,12 +204,15 @@ while (time.time() - start_time) < 30:
         exit()
 
 print(comm_set)
-print()
+print() """
 
+command_to_comm = {}
+comm_to_command = {}
 
 def print_event(cpu, data, size):
     event = b["events"].event(data)
     name = event.name.decode('utf-8', 'replace')
+    comm = event.comm.decode('utf-8', 'replace')
     if event.name_len > DNAME_INLINE_LEN:
         name = name[:-3] + "..."
 
@@ -221,21 +222,30 @@ def print_event(cpu, data, size):
     # print line
     try:
         command = command_list[0].split(" ")[0]
-        if command not in comm_set:
-            print("%-20s %-7s %-16s %4s %s %s" % (
+        if command not in command_to_comm:
+            command_to_comm[command] = set()
+        
+        command_to_comm[command].add(comm)
+        comm_to_command[comm] = command
+
+    except:
+        # process has been stopped
+        command = comm_to_command[comm]
+    finally:
+        # if command not in comm_set:
+        print("%-20s %-7s %-16s %4s %-64s %-64s" % (
                     event.order,
                     event.pid,
-                    event.comm.decode('utf-8', 'replace'),
+                    comm,
                     event.type.decode('utf-8', 'replace'), 
                     name,
                     command
-            ))
-    except:
-        pass
+        ))
 b["events"].open_perf_buffer(print_event)
 
 while 1:
     try:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
+        print(command_to_comm)
         exit()
