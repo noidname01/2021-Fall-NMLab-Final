@@ -194,6 +194,7 @@ class FileRe():
     @functools.lru_cache(maxsize=512,typed=True)
     def q(self,filename):
         c = self.files.copy()
+        l = len(filename)
         return list(filter(lambda x: filename == x['n'][:l],c))
 
 
