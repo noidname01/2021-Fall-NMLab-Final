@@ -1,6 +1,7 @@
 import subprocess as sb
 import random
 import os
+import functools
 class LVM():
     eng = 'abcdefghijklmnopqrstuvwxyz'
     def __init__(self):
@@ -161,6 +162,7 @@ class FileRe():
             os.chown(newpath,fuid,fgid)
             os.chmod(newpath,fmode)
             os.chmod(c[0]["p"],fmode)
+            return 0
         elif select==-1 and not all:
             return c
         elif select != -1:
@@ -184,9 +186,15 @@ class FileRe():
             os.chown(newpath,fuid,fgid)
             os.chmod(newpath,fmode)
             os.chmod(c[select]["p"],fmode)
+            return 0
         elif all:
             for i in range(len(c)):
                 self.r(filename,select=i,lists=c)
+    
+    @functools.lru_cache(maxsize=512,typed=True)
+    def q(self,filename):
+        c = self.files.copy()
+        return list(filter(lambda x: filename == x['n'][:l],c))
 
 
 
