@@ -132,7 +132,7 @@ int trace_write_entry(struct pt_regs *ctx, struct file *file,
 }
 
 // trace file deletion and output details
-int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
+static int do_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
 {
     u32 pid = bpf_get_current_pid_tgid();
     if (TGID_FILTER)
@@ -164,6 +164,14 @@ int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
         return 0;
     }
 }
+int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
+{
+    return do_unlink(ctx, dir, dentry);
+}
+int trace_rename(struct pt_regs *ctx, struct inode *old_dir, struct dentry *old_dentry, struct inode *new_dir, struct dentry *new_dentry)
+{
+    return do_unlink(ctx, old_dir, old_dentry);
+}
 """
     if args.tgid:
         bpf_text = bpf_text.replace('TGID_FILTER', 'tgid != %d' % args.tgid)
@@ -174,6 +182,7 @@ int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
     b = BPF(text=bpf_text, )
     b.attach_kprobe(event="vfs_write", fn_name="trace_write_entry")
     b.attach_kprobe(event="vfs_unlink", fn_name="trace_unlink")
+    b.attach_kprobe(event="vfs_rename", fn_name="trace_rename")
 
     command_to_comm = {}
     comm_to_command = {}
@@ -234,6 +243,7 @@ int trace_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
     b["events"].open_perf_buffer(print_event)
 
     print('The program now is Tracking your FileSystem and able to recover your filesystem.')
+    print()
     print("Press 'Ctrl + C' to stop Tracking and go into recovery mode")
 
     if debug:
@@ -253,8 +263,8 @@ except KeyboardInterrupt:
     print("Mounting...")
     mount_path = snapshot.mountSnapshot(sel)
     file_recoverer = FileRe('/', mount_path)
-# header
 
+    # header
     print("%-5s %-7s %-16s %4s %-64s" % ("ORDER" ,"TID", "COMM", "TYPE", "FILE"))   
 
     count = 0
