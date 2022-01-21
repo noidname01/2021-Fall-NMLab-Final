@@ -223,15 +223,17 @@ int trace_rename(struct pt_regs *ctx, struct inode *old_dir, struct dentry *old_
         finally:
             # if the executor doesn't in the whitelist, record it to be processed
             has_whitepath = list(filter(lambda x: command.replace(x, "") != command, whilelist))
-            if debug and len(has_whitepath) == 0:
+            if len(has_whitepath) == 0:
                 if (comm, name) not in comm_filename_set:
-                    print("%-10d %-7s %-16s %4s %-64s" % (
+                    if(debug):
+                        print("%-10d %-7s %-16s %4s %-64s" % (
                                 event.order,
                                 event.pid,
                                 comm,
                                 event.type.decode('utf-8', 'replace'), 
                                 name,
-                    ))
+                        ))
+                    
                     comm_filename_set.add((comm, name))
                     candidators_info[str(event.order)] = {
                         "pid":event.pid,
@@ -290,7 +292,7 @@ except KeyboardInterrupt:
         if(input_str == "a"):
             file_recoverer.recovery(full_path_filenames)
             break
-        
+
         choosed = list(map(lambda x:int(x), input_str.split(" ")))
         to_be_recovered = list(map(lambda x : full_path_filenames[int(x)],choosed))
 
