@@ -74,7 +74,7 @@ try:
 #include <linux/fs.h>
 #include <linux/sched.h>
 // the key for the output summary
-BPF_RINGBUF_OUTPUT(events, 8);
+BPF_RINGBUF_OUTPUT(events, 2048);
 struct info_t {
     u64 order;
     unsigned long inode;
@@ -256,7 +256,7 @@ int trace_rename(struct pt_regs *ctx, struct inode *old_dir, struct dentry *old_
     # run until the duration over
     start_time = time.time()
     while time.time() - start_time < duration:
-        b.ring_buffer_poll()
+        b.ring_buffer_consume()
 
 
 except KeyboardInterrupt:
