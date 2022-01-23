@@ -74,7 +74,7 @@ try:
 #include <linux/fs.h>
 #include <linux/sched.h>
 // the key for the output summary
-BPF_RINGBUF_OUTPUT(events, 2048);
+BPF_RINGBUF_OUTPUT(events, 4096);
 struct info_t {
     u64 order;
     unsigned long inode;

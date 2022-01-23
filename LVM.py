@@ -69,7 +69,7 @@ class LVM():
         p = sb.Popen(
                 ['lvcreate','--snapshot','-n',name,
                 '--size',f'{size}M',f'{self.lvs[l]["p"]}'],stdout=sb.PIPE
-            )
+            ).wait()
         self.get_status()
 
     def mountSnapshot(self,l):
@@ -216,7 +216,7 @@ class FileRe():
                 fmode ,fuid,fgid = fd.st_mode,fd.st_uid,fd.st_gid
                 os.chmod(fullnames[i],0o400)
                 newpath = exists_parent_folder+'/'+name
-                p = sb.Popen(['cp',f'{fullnames[i]}',f'{exists_parent_folder}'],stdout=sb.PIPE).wait()            
+                p = sb.Popen(['cp','-rf',f'{fullnames[i]}',f'{exists_parent_folder}'],stdout=sb.PIPE).wait()            
                 os.chown(newpath,fuid,fgid)
                 os.chmod(newpath,fmode)
                 os.chmod(fullnames[i],fmode)
