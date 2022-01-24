@@ -9,6 +9,23 @@ For the sake of the safety of your computer, We strongly recommend that running 
 ### Ubuntu 20.04 + LVM
 You need to enable LVM when installing Ubuntu.
 
+##### Example:
+1. Select LVM when installing.
+![step1](https://github.com/noidname01/2021-Fall-NMLab-Final/blob/main/pic/step1.png?raw=true)
+2. Prepare some other disk space.
+3. Create a LVM physical volume
+```
+pvcreate /dev/<disks\>
+```
+![step2](https://github.com/noidname01/2021-Fall-NMLab-Final/blob/main/pic/step2.png?raw=true)
+
+4. Add the physical volume to a volume group(default: vgubuntu)
+```
+vgextend vgubuntu /dev/<disks\>
+```
+![step3](https://github.com/noidname01/2021-Fall-NMLab-Final/blob/main/pic/step3.png?raw=true)
+
+
 ### Linux Kernel 5.11.0-46 (Important!)
 The kernel version can strongly influence the working of BCC and some kernel function, so please be sure you're in correct version.
 ### LVM
