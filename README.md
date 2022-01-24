@@ -6,7 +6,9 @@ In the meantime, it can **remain the change of unattacked files**, instead of re
 
 ## Environment
 For the sake of the safety of your computer, We strongly recommend that running our project on the Virtual Machine.
-### Ubuntu 20.04
+### Ubuntu 20.04 + LVM
+You need to enable LVM when installing Ubuntu.
+
 ### Linux Kernel 5.11.0-46 (Important!)
 The kernel version can strongly influence the working of BCC and some kernel function, so please be sure you're in correct version.
 ### LVM
