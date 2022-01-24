@@ -23,6 +23,10 @@ Follow the step [here](https://github.com/iovisor/bcc/blob/master/INSTALL.md#ubu
 ```
 python3 filetoplife.py
 ```
+or
+```
+python3 filetoplife-ring.py
+```
 
 The CLI will tell you what to do.
 
