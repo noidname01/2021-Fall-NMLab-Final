@@ -1,5 +1,3 @@
-from __future__ import print_function
-from asyncore import file_wrapper
 from bcc import BPF
 import time
 import argparse
@@ -9,38 +7,13 @@ import subprocess
 from LVM import *
 
 # arguments
-examples = """examples:
-    ./filetop            # file I/O top, 1 second refresh
-    ./filetop -C         # don't clear the screen
-    ./filetop -p 181     # PID 181 only
-    ./filetop 5          # 5 second summaries
-    ./filetop 5 10       # 5 second summaries, 10 times only
-"""
 parser = argparse.ArgumentParser(
     description="File reads and writes by process",
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog=examples)
-parser.add_argument("-C", "--noclear", action="store_true",
-    help="don't clear the screen")
-parser.add_argument("-r", "--maxrows", default=20,
-    help="maximum rows to print, default 20")
-parser.add_argument("-p", "--pid", type=int, metavar="PID", dest="tgid",
-    help="trace this PID only")
-parser.add_argument("duration", nargs="?", default=9999999999,
-    help="the scanning time duration")
-parser.add_argument("interval", nargs="?", default=1,
-    help="output interval, in seconds")
-parser.add_argument("--size", nargs="?", default=4096,
-    help="snapshot size in GB")
+    formatter_class=argparse.RawDescriptionHelpFormatter,)
 parser.add_argument("--debug", action="store_true", 
     help="open debug mode")
 args = parser.parse_args()
 
-duration = int(args.duration)
-interval = int(args.interval)
-size = int(args.size)
-maxrows = int(args.maxrows)
-clear = not int(args.noclear)
 debug = bool(int(args.debug))
 
 print('This program will create a snapshot right now.')
@@ -94,8 +67,7 @@ static int do_entry(struct pt_regs *ctx, struct file *file,
     char __user *buf, size_t count, int is_read)
 {
     u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    if (TGID_FILTER)
-        return 0;
+    
     u32 pid = bpf_get_current_pid_tgid();
     // skip I/O lacking a filename
     struct dentry *de = file->f_path.dentry;
@@ -136,8 +108,6 @@ int trace_write_entry(struct pt_regs *ctx, struct file *file,
 static int do_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry)
 {
     u32 pid = bpf_get_current_pid_tgid();
-    if (TGID_FILTER)
-            return 0;
 
     struct qstr d_name = dentry->d_name;
     if (d_name.len == 0)
@@ -174,11 +144,6 @@ int trace_rename(struct pt_regs *ctx, struct inode *old_dir, struct dentry *old_
     return do_unlink(ctx, old_dir, old_dentry);
 }
 """
-    if args.tgid:
-        bpf_text = bpf_text.replace('TGID_FILTER', 'tgid != %d' % args.tgid)
-    else:
-        bpf_text = bpf_text.replace('TGID_FILTER', '0')
-
     # initialize BPF
     b = BPF(text=bpf_text)
     b.attach_kprobe(event="vfs_write", fn_name="trace_write_entry")
@@ -248,14 +213,13 @@ int trace_rename(struct pt_regs *ctx, struct inode *old_dir, struct dentry *old_
     print("Press 'Ctrl + C' to stop Tracking and go into recovery mode")
 
     if debug:
-        print('Tracing... Output every %d secs. Hit Ctrl-C to end' % interval)
         print("%-10s %-7s %-16s %4s %-64s" % ("ORDER" ,"TID", "COMM", "TYPE", "FILE"))   
     else:
         print('Scanning... ')
 
     # run until the duration over
     start_time = time.time()
-    while time.time() - start_time < duration:
+    while True:
         b.ring_buffer_consume()
 
 
